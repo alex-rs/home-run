@@ -1,0 +1,80 @@
+# Home-Run Backend Configuration
+# Copy this file and customize for your environment
+
+server:
+  port: 8085
+  session_secret: "change-this-to-a-random-32-char-string!"
+  cors_allow_origin: "http://localhost:8085"  # Same origin (frontend served from backend)
+
+# Authentication credentials (stored in plain text as per requirements)
+auth:
+  username: admin
+  password: admin123
+  api_token: "your-federation-api-token-here"  # Used for inter-host communication
+
+# Uptime Kuma integration (optional - comment out if not using)
+# uptime_kuma:
+#   url: http://localhost:3001
+#   api_key: "your-kuma-api-key"  # From Uptime Kuma settings
+
+# Services to monitor
+services:
+  - name: Valhalla Routing
+    url: http://localhost
+    port: 8002
+    backend: docker
+    container_name: maps-valhalla-1
+
+  - name: Bazarr
+    url: http://localhost
+    port: 6767
+    backend: docker
+    container_name: bazarr
+
+  - name: WinBoat (Windows VM)
+    url: http://localhost
+    port: 8006
+    backend: docker
+    container_name: WinBoat
+
+  - name: Maps Web (Nginx)
+    url: http://localhost
+    port: 8088
+    backend: docker
+    container_name: maps-web-1
+
+  - name: Martin Tile Server
+    url: http://localhost
+    port: 8080
+    backend: docker
+    container_name: maps-tiles-1
+
+  - name: POI API
+    url: http://localhost
+    port: 9000
+    backend: docker
+    container_name: maps-poi-api-1
+
+  - name: Satellite Tiles
+    url: http://localhost
+    port: 8081
+    backend: docker
+    container_name: maps-sat-1
+
+  - name: Gemini MCP Bridge
+    url: http://localhost
+    port: 8765
+    backend: docker
+    container_name: deployment-bridge-1
+
+  - name: Qdrant Vector DB
+    url: http://localhost
+    port: 6333
+    backend: docker
+    container_name: qdrant_secured
+
+# Remote hosts for federation (optional)
+# remote_hosts:
+#   - name: Server 2
+#     endpoint: http://192.168.1.100:8080/api
+#     token: "their-api-token"
