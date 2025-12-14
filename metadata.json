@@ -1,0 +1,5 @@
+{
+  "name": "HomeLan Dashboard",
+  "description": "A modern, responsive homelab dashboard to manage running services and visualize configurations with AI-powered analysis.",
+  "requestFramePermissions": []
+}
