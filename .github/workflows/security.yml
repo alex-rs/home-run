@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '0 0 * * 0'  # Weekly on Sunday
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   gosec:
     name: Go Security Scan
@@ -23,17 +27,13 @@ jobs:
         args: '-no-fail -fmt sarif -out gosec-results.sarif ./backend/...'
 
     - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: gosec-results.sarif
 
   npm-audit:
     name: NPM Audit
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: ./frontend
 
     steps:
     - name: Checkout code
