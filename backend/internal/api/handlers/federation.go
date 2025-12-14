@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"os"
 
+	"home-run-backend/internal/logger"
 	"home-run-backend/internal/services/federation"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 type FederationHandler struct {
@@ -29,6 +31,12 @@ func (h *FederationHandler) Services(c *gin.Context) {
 	if hostname == "" {
 		hostname = "unknown"
 	}
+
+	logger.WithFields(logrus.Fields{
+		"hostname": hostname,
+		"count":    len(services),
+		"ip":       c.ClientIP(),
+	}).Info("Federation request served")
 
 	c.JSON(http.StatusOK, gin.H{
 		"services": services,

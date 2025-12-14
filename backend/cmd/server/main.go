@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,7 @@ import (
 
 	"home-run-backend/internal/api"
 	"home-run-backend/internal/config"
+	"home-run-backend/internal/logger"
 	"home-run-backend/internal/services"
 	"home-run-backend/internal/services/federation"
 )
@@ -23,10 +23,10 @@ func main() {
 	flag.Parse()
 
 	// Load configuration
-	log.Printf("Loading configuration from %s", *configPath)
+	logger.Log.Infof("Loading configuration from %s", *configPath)
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		logger.Log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	// Create context for graceful shutdown
@@ -34,10 +34,10 @@ func main() {
 	defer cancel()
 
 	// Initialize service manager
-	log.Println("Initializing service manager...")
+	logger.Log.Info("Initializing service manager...")
 	manager, err := services.NewManager(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize service manager: %v", err)
+		logger.Log.Fatalf("Failed to initialize service manager: %v", err)
 	}
 
 	// Start background processes
@@ -62,13 +62,13 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		log.Printf("Starting server on %s", addr)
-		log.Printf("CORS allowed origin: %s", cfg.Server.CORSAllowOrigin)
-		log.Printf("Monitoring %d services", len(cfg.Services))
-		log.Printf("Federated with %d remote hosts", len(cfg.RemoteHosts))
+		logger.Log.Infof("Starting server on %s", addr)
+		logger.Log.Infof("CORS allowed origin: %s", cfg.Server.CORSAllowOrigin)
+		logger.Log.Infof("Monitoring %d services", len(cfg.Services))
+		logger.Log.Infof("Federated with %d remote hosts", len(cfg.RemoteHosts))
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			logger.Log.Fatalf("Server error: %v", err)
 		}
 	}()
 
@@ -77,15 +77,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	logger.Log.Info("Shutting down server...")
 
 	// Graceful shutdown with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		logger.Log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-	log.Println("Server exited")
+	logger.Log.Info("Server exited")
 }

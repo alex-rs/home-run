@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"home-run-backend/internal/config"
+	"home-run-backend/internal/logger"
+
+	"github.com/sirupsen/logrus"
 )
 
 // MonitorStatus holds the status of an Uptime Kuma monitor
@@ -51,6 +54,10 @@ func (c *Client) GetMonitorStatus(ctx context.Context, monitorID int) (*MonitorS
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"monitor_id": monitorID,
+			"error":      err.Error(),
+		}).Error("Failed to create Kuma request")
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -61,17 +68,41 @@ func (c *Client) GetMonitorStatus(ctx context.Context, monitorID int) (*MonitorS
 		req.SetBasicAuth(c.username, c.password)
 	}
 
+	logger.WithField("monitor_id", monitorID).Debug("Fetching monitor status from Uptime Kuma")
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"monitor_id": monitorID,
+			"error":      err.Error(),
+		}).Warn("Failed to fetch Kuma metrics")
 		return nil, fmt.Errorf("failed to fetch metrics: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logger.WithFields(logrus.Fields{
+			"monitor_id": monitorID,
+			"status":     resp.StatusCode,
+		}).Warn("Kuma returned non-200 status")
 		return nil, fmt.Errorf("kuma returned status %d", resp.StatusCode)
 	}
 
-	return c.parseMetrics(resp.Body, monitorID)
+	status, err := c.parseMetrics(resp.Body, monitorID)
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"monitor_id": monitorID,
+			"error":      err.Error(),
+		}).Error("Failed to parse Kuma metrics")
+		return nil, err
+	}
+
+	logger.WithFields(logrus.Fields{
+		"monitor_id": monitorID,
+		"status":     status.Status,
+	}).Debug("Retrieved monitor status from Kuma")
+
+	return status, nil
 }
 
 // parseMetrics parses the Prometheus format metrics response
@@ -83,7 +114,6 @@ func (c *Client) parseMetrics(body io.Reader, targetID int) (*MonitorStatus, err
 	// Regex to extract monitor_id from metric lines
 	// Example: monitor_status{monitor_name="Nginx",monitor_type="http",monitor_url="https://example.com",monitor_hostname="null",monitor_port="null"} 1
 	statusRegex := regexp.MustCompile(`monitor_status\{[^}]*monitor_name="([^"]*)"[^}]*\}\s+(\d+)`)
-	certRegex := regexp.MustCompile(`monitor_cert_is_valid\{[^}]*\}\s+(\d+)`)
 	responseTimeRegex := regexp.MustCompile(`monitor_response_time\{[^}]*\}\s+([\d.]+)`)
 
 	// Uptime Kuma uses a different format - need to match by order or specific attributes
@@ -128,12 +158,6 @@ func (c *Client) parseMetrics(body io.Reader, targetID int) (*MonitorStatus, err
 				}
 			}
 
-			// Extract cert validity (if applicable)
-			if strings.HasPrefix(line, "monitor_cert_is_valid{") {
-				if matches := certRegex.FindStringSubmatch(line); len(matches) > 1 {
-					// Could use this for additional status info
-				}
-			}
 		}
 	}
 

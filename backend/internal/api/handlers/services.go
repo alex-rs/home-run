@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"home-run-backend/internal/logger"
 	"home-run-backend/internal/services"
 	"home-run-backend/internal/services/federation"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 type ServicesHandler struct {
@@ -35,6 +37,11 @@ func (h *ServicesHandler) List(c *gin.Context) {
 		}
 	}
 
+	logger.WithFields(logrus.Fields{
+		"total":   len(allServices),
+		"running": running,
+	}).Debug("Listed all services")
+
 	c.JSON(http.StatusOK, gin.H{
 		"services": allServices,
 		"total":    len(allServices),
@@ -49,6 +56,10 @@ func (h *ServicesHandler) Get(c *gin.Context) {
 
 	svc, err := h.manager.GetByID(ctx, id)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"service_id": id,
+			"error":      err.Error(),
+		}).Warn("Service not found")
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"error":   err.Error(),
@@ -56,6 +67,7 @@ func (h *ServicesHandler) Get(c *gin.Context) {
 		return
 	}
 
+	logger.WithField("service_id", id).Debug("Retrieved service details")
 	c.JSON(http.StatusOK, svc)
 }
 
@@ -67,6 +79,10 @@ func (h *ServicesHandler) GetConfig(c *gin.Context) {
 
 	index, err := strconv.Atoi(indexStr)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"service_id": serviceID,
+			"index":      indexStr,
+		}).Warn("Invalid config index")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "Invalid config index",
@@ -76,12 +92,23 @@ func (h *ServicesHandler) GetConfig(c *gin.Context) {
 
 	config, err := h.manager.GetConfigContent(ctx, serviceID, index)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"service_id": serviceID,
+			"index":      index,
+			"error":      err.Error(),
+		}).Warn("Failed to get config content")
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"error":   err.Error(),
 		})
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"service_id": serviceID,
+		"index":      index,
+		"path":       config.Path,
+	}).Debug("Retrieved config file")
 
 	c.JSON(http.StatusOK, config)
 }

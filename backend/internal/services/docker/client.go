@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"home-run-backend/internal/logger"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
 )
 
 // ContainerInfo holds container status information
@@ -35,6 +37,7 @@ type Client struct {
 func NewClient() (*Client, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
+		logger.WithField("error", err.Error()).Warn("Failed to create Docker client")
 		return nil, fmt.Errorf("failed to create docker client: %w", err)
 	}
 
@@ -43,9 +46,11 @@ func NewClient() (*Client, error) {
 	defer cancel()
 	_, err = cli.Ping(ctx)
 	if err != nil {
+		logger.WithField("error", err.Error()).Warn("Failed to connect to Docker daemon")
 		return nil, fmt.Errorf("failed to connect to docker daemon: %w", err)
 	}
 
+	logger.Log.Info("Docker client initialized successfully")
 	return &Client{cli: cli}, nil
 }
 
@@ -58,6 +63,10 @@ func (c *Client) Close() error {
 func (c *Client) GetContainerInfo(ctx context.Context, containerName string) (*ContainerInfo, error) {
 	containers, err := c.cli.ContainerList(ctx, container.ListOptions{All: true})
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"container": containerName,
+			"error":     err.Error(),
+		}).Error("Failed to list containers")
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
@@ -85,11 +94,17 @@ func (c *Client) GetContainerInfo(ctx context.Context, containerName string) (*C
 					}
 				}
 
+				logger.WithFields(logrus.Fields{
+					"container": containerName,
+					"id":        info.ID,
+					"status":    info.Status,
+				}).Debug("Retrieved container info")
 				return info, nil
 			}
 		}
 	}
 
+	logger.WithField("container", containerName).Warn("Container not found")
 	return nil, fmt.Errorf("container '%s' not found", containerName)
 }
 
@@ -101,7 +116,7 @@ func (c *Client) GetContainerStats(ctx context.Context, containerID string) (*St
 	}
 	defer statsResp.Body.Close()
 
-	var stats types.StatsJSON
+	var stats container.StatsResponse
 	if err := json.NewDecoder(statsResp.Body).Decode(&stats); err != nil {
 		return nil, fmt.Errorf("failed to decode stats: %w", err)
 	}
@@ -113,7 +128,7 @@ func (c *Client) GetContainerStats(ctx context.Context, containerID string) (*St
 }
 
 // calculateCPUPercent calculates CPU usage percentage
-func calculateCPUPercent(stats *types.StatsJSON) float64 {
+func calculateCPUPercent(stats *container.StatsResponse) float64 {
 	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)
 

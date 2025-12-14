@@ -2,12 +2,14 @@ package docker
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
 	"home-run-backend/internal/cache"
 	"home-run-backend/internal/config"
+	"home-run-backend/internal/logger"
+
+	"github.com/sirupsen/logrus"
 )
 
 // CachedStats holds cached container stats
@@ -51,6 +53,8 @@ func (sc *StatsCollector) Start(ctx context.Context) {
 	sc.running = true
 	sc.mu.Unlock()
 
+	logger.WithField("interval", sc.interval).Info("Starting Docker stats collector")
+
 	// Collect immediately on start
 	sc.collectAll(ctx)
 
@@ -61,8 +65,10 @@ func (sc *StatsCollector) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
+				logger.Log.Info("Docker stats collector stopped (context cancelled)")
 				return
 			case <-sc.stopCh:
+				logger.Log.Info("Docker stats collector stopped")
 				return
 			case <-ticker.C:
 				sc.collectAll(ctx)
@@ -83,6 +89,7 @@ func (sc *StatsCollector) Stop() {
 
 // collectAll collects stats for all Docker services
 func (sc *StatsCollector) collectAll(ctx context.Context) {
+	logger.Log.Debug("Collecting Docker stats for all containers")
 	for _, svc := range sc.services {
 		if svc.Backend != "docker" {
 			continue
@@ -90,7 +97,10 @@ func (sc *StatsCollector) collectAll(ctx context.Context) {
 
 		info, err := sc.client.GetContainerInfo(ctx, svc.ContainerName)
 		if err != nil {
-			log.Printf("Failed to get container info for %s: %v", svc.ContainerName, err)
+			logger.WithFields(logrus.Fields{
+				"container": svc.ContainerName,
+				"error":     err.Error(),
+			}).Warn("Failed to get container info")
 			sc.cache.Set(svc.ContainerName, &CachedStats{
 				Status:     "ERROR",
 				LastUpdate: time.Now(),
@@ -108,10 +118,18 @@ func (sc *StatsCollector) collectAll(ctx context.Context) {
 		if info.Status == "RUNNING" {
 			stats, err := sc.client.GetContainerStats(ctx, info.ID)
 			if err != nil {
-				log.Printf("Failed to get stats for %s: %v", svc.ContainerName, err)
+				logger.WithFields(logrus.Fields{
+					"container": svc.ContainerName,
+					"error":     err.Error(),
+				}).Warn("Failed to get container stats")
 			} else {
 				cached.CPUPercent = stats.CPUPercent
 				cached.MemoryMB = stats.MemoryMB
+				logger.WithFields(logrus.Fields{
+					"container": svc.ContainerName,
+					"cpu":       stats.CPUPercent,
+					"memory_mb": stats.MemoryMB,
+				}).Debug("Collected container stats")
 			}
 		}
 

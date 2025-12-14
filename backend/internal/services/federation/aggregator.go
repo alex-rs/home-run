@@ -3,11 +3,13 @@ package federation
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
 	"home-run-backend/internal/config"
+	"home-run-backend/internal/logger"
 	"home-run-backend/internal/models"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ServiceProvider is an interface for getting local services
@@ -50,6 +52,8 @@ func (a *Aggregator) GetAllServices(ctx context.Context) []models.Service {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
+	logger.WithField("remote_hosts", len(a.remoteHosts)).Debug("Fetching services from remote hosts")
+
 	for _, host := range a.remoteHosts {
 		wg.Add(1)
 		go func(h config.RemoteHost) {
@@ -58,7 +62,10 @@ func (a *Aggregator) GetAllServices(ctx context.Context) []models.Service {
 			client := NewClient(h)
 			resp, err := client.FetchServices(ctx)
 			if err != nil {
-				log.Printf("Failed to fetch services from %s: %v", h.Name, err)
+				logger.WithFields(logrus.Fields{
+					"host":  h.Name,
+					"error": err.Error(),
+				}).Warn("Failed to fetch services from remote host")
 				return
 			}
 
@@ -74,6 +81,7 @@ func (a *Aggregator) GetAllServices(ctx context.Context) []models.Service {
 	}
 
 	wg.Wait()
+	logger.WithField("total_services", len(result)).Debug("Aggregated all services")
 	return result
 }
 

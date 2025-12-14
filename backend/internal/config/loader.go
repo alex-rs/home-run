@@ -5,18 +5,31 @@ import (
 	"fmt"
 	"os"
 
+	"home-run-backend/internal/logger"
+
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
 
 // Load reads and parses the configuration file
 func Load(path string) (*Config, error) {
+	logger.WithField("path", path).Debug("Loading configuration file")
+
 	data, err := os.ReadFile(path)
 	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"path":  path,
+			"error": err.Error(),
+		}).Error("Failed to read config file")
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		logger.WithFields(logrus.Fields{
+			"path":  path,
+			"error": err.Error(),
+		}).Error("Failed to parse config file")
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
@@ -25,8 +38,19 @@ func Load(path string) (*Config, error) {
 
 	// Validate
 	if err := validate(&cfg); err != nil {
+		logger.WithFields(logrus.Fields{
+			"path":  path,
+			"error": err.Error(),
+		}).Error("Config validation failed")
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
+
+	logger.WithFields(logrus.Fields{
+		"services":     len(cfg.Services),
+		"remote_hosts": len(cfg.RemoteHosts),
+		"port":         cfg.Server.Port,
+		"uptime_kuma":  cfg.UptimeKuma != nil,
+	}).Info("Configuration loaded successfully")
 
 	return &cfg, nil
 }
