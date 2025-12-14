@@ -1,0 +1,7 @@
+node_modules/
+backend/home-run-backend
+.git/
+.claude/
+*.md
+.env*
+dist/

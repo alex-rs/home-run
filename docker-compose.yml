@@ -1,0 +1,10 @@
+services:
+  home-run:
+    build: .
+    container_name: home-run
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./backend/config.yml:/app/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # For Docker stats
+    restart: unless-stopped
